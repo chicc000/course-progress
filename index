@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>課程進度追蹤器 V2.2 (Web App - 可編輯)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', 'Microsoft JhengHei', 'sans-serif'; }
+        .progress-bar { transition: width 0.5s ease-in-out; }
+        .status-badge { padding: 0.2rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .table-scroll { overflow-x: auto; }
+    </style>
+</head>
+<body class="bg-gray-50 p-4 sm:p-8">
+
+    <div id="app" class="max-w-4xl mx-auto bg-white shadow-xl rounded-lg overflow-hidden">
+        
+        <header class="bg-blue-600 text-white p-6">
+            <h1 class="text-3xl font-bold">🎓 課程進度追蹤器 <span id="version" class="text-blue-200"></span></h1>
+            <p class="text-blue-200 mt-1">報告生成日期：<span id="generated-date"></span></p>
+        </header>
+
+        <main class="p-6 space-y-8">
+            
+            <section id="input-section" class="border border-indigo-200 p-4 rounded-lg bg-indigo-50">
+                <h2 class="text-xl font-bold text-indigo-700 mb-4">✍️ 新增已修課程</h2>
+                <form id="add-course-form" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label for="course-type" class="block text-sm font-medium text-gray-700">類別 (必/選)</label>
+                            <select id="course-type" required class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                <option value="">-- 請選擇 --</option>
+                                <option value="必修">必修</option>
+                                <option value="通識">通識</option>
+                                <option value="選修">選修</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label for="course-subtype" class="block text-sm font-medium text-gray-700">課程子類別</label>
+                            <select id="course-subtype" required class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                <option value="">-- 請先選上層類別 --</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label for="course-name" class="block text-sm font-medium text-gray-700">課程名稱</label>
+                            <input type="text" id="course-name" required class="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2" placeholder="例如：進階寫作 (二)">
+                        </div>
+
+                        <div>
+                            <label for="course-credits" class="block text-sm font-medium text-gray-700">學分數</label>
+                            <input type="number" id="course-credits" required min="1" step="1" class="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2" value="2">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="w-full justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        ➕ 確認新增課程並更新報告
+                    </button>
+                    <p id="message" class="text-sm text-red-500"></p>
+                </form>
+            </section>
+            <section class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+                <h2 class="text-2xl font-semibold text-blue-800 mb-4">📊 總體摘要</h2>
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <p class="text-gray-500 text-sm">總畢業學分</p>
+                        <p id="total-required" class="text-3xl font-bold text-gray-700"></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">已修學分</p>
+                        <p id="total-completed" class="text-3xl font-bold text-green-600"></p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">尚缺學分</p>
+                        <p id="total-remaining" class="text-3xl font-bold text-red-600"></p>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold mb-3 border-b pb-2">📋 畢業要求總覽</h2>
+                <div class="table-scroll">
+                    <table id="summary-table" class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">類別</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">應修</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">已修</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">尚缺</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">完成度</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">狀態</th>
+                            </tr>
+                        </thead>
+                        <tbody id="summary-body" class="bg-white divide-y divide-gray-200">
+                            </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold mb-3 border-b pb-2">📘 I. 系上必修 (75 學分)</h2>
+                <div id="major-progress" class="mb-4">
+                    </div>
+                
+                <h3 class="text-lg font-medium text-gray-700 mb-2">尚缺課程明細</h3>
+                <div class="table-scroll">
+                    <table id="detail-table" class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">子類別</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">應修</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">已修</th>
+                                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">尚缺</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">尚缺課程</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detail-body" class="bg-white divide-y divide-gray-200">
+                            </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="p-4 border rounded-lg shadow-sm">
+                    <h3 class="text-lg font-medium text-purple-700 mb-2">📘 II. 共同核心 (18+)</h3>
+                    <p class="text-sm">已修：<span id="core-completed" class="font-bold">3</span> 學分</p>
+                    <p class="text-sm">尚缺：<span id="core-remaining" class="font-bold text-red-500">至少 15</span> 學分</p>
+                </div>
+                <div class="p-4 border rounded-lg shadow-sm">
+                    <h3 class="text-lg font-medium text-purple-700 mb-2">📘 III. 系上專選</h3>
+                    <p class="text-sm">已修：<span id="elective-special-completed" class="font-bold">3</span> 學分</p>
+                    <p class="text-sm">尚缺：<span id="elective-special-remaining" class="font-bold text-red-500">6</span> 學分</p>
+                </div>
+                <div class="p-4 border rounded-lg shadow-sm">
+                    <h3 class="text-lg font-medium text-purple-700 mb-2">📘 IV. 其他選修</h3>
+                    <p class="text-sm">已修：<span id="elective-other-completed" class="font-bold">3</span> 學分</p>
+                    <p class="text-sm">尚缺：<span id="elective-other-remaining" class="font-bold text-red-500">23</span> 學分</p>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="text-xl font-semibold mb-3 border-b pb-2">📌 修課建議（優先順序）</h2>
+                <ol id="advice-list" class="list-decimal list-inside space-y-1 text-gray-700">
+                    </ol>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        // --- 資料結構 V2.2 (將數據移到這裡，方便新增課程後更新) ---
+        let data = {
+            meta: {
+                "version": "V2.2",
+                "generated_on": new Date().toISOString().split('T')[0], // 自動更新日期
+                "total_required": 128,
+                "total_completed": 51,
+            },
+            // Note: 這裡的 completed 數字將透過 JS 重新計算
+            categories: [
+                {"name": "系上必修", "required": 75, "completed": 42, "note": "（+2 計概 / + 西概二）"},
+                {"name": "共同核心", "required": "≥18", "completed": 3, "note": ""},
+                {"name": "系上專選", "required": 9, "completed": 3, "note": ""},
+                {"name": "其他選修", "required": 26, "completed": 3, "note": ""},
+            ],
+            // 專業必修的詳細拆分 (子類別)
+            majorRequiredDetail: [
+                {"sub": "基礎課程", "required": 28, "completed": 27, "remaining": 1, "todo": "高級寫作（二）"},
+                {"sub": "語言學", "required": 10, "completed": 7, "remaining": 3, "todo": "語義學 / 句法學"},
+                {"sub": "斷代史", "required": 12, "completed": 7, "remaining": 5, "todo": "英國文學（二）、美國文學（一）"},
+                {"sub": "文類", "required": 6, "completed": 0, "remaining": 6, "todo": "詩、小說、戲劇、其他"},
+                {"sub": "第二外語", "required": 8, "completed": 2, "remaining": 6, "todo": "初日（二）、中日（一）（二）"},
+                {"sub": "其他", "required": 2, "completed": 2, "remaining": 0, "todo": "計算機概論（已完成）"},
+            ],
+            // 通識課程的子類別定義
+            generalEducationSubtypes: [
+                "基本素養", "人文與美學", "個人、社會與文化", "公民與倫理思考", "社會中的科技與自然"
+            ],
+            // 必修類別的映射 (為了處理新增課程的邏輯)
+            requiredMapping: {
+                "第二外語": "第二外語",
+                "專選": "系上專選", // 雖然名稱是專選,但原先資料結構中它被單獨列為一個類別 (III)
+                "基礎課程": "基礎課程", // 假設這些屬於系上必修 I
+                "語言學": "語言學",
+                "斷代史": "斷代史",
+                "文類課程-詩": "文類",
+                "文類課程-小說": "文類",
+                "文類課程-戲劇": "文類",
+                "文類課程-其他": "文類"
+            },
+            // 修課建議保持不變
+            advice: [
+                "高級寫作（二）",
+                "語義學或句法學",
+                "英國文學（二）、美國文學（一）",
+                "文類四領域（詩、小說、戲劇、其他）",
+                "日文（二）與中級日文",
+                "核心課程基本素養與兩大領域",
+                "自由選修補至 128",
+            ],
+            // 儲存已修課程的紀錄，用於重新計算
+            completedCourses: [
+                // 這是為了在沒有後端時，儲存使用者手動新增的課程
+                { type: '必修', subtype: '其他', credits: 2, name: '計算機概論' },
+                // 這裡應該包含所有已修的 51 學分，但為了簡化範例，只列出一個。
+            ]
+        };
+        
+        // --- Helper 函數 ---
+        const pct = (numer, denom) => {
+            if (denom === 0 || denom === '0') return "-";
+            return `${((numer / parseFloat(denom.toString().replace('≥',''))) * 100).toFixed(1)}%`;
+        };
+
+        const getStatusBadge = (compRatio) => {
+            let statusText, bgColor;
+            if (compRatio >= 0.85) {
+                statusText = "🟢 接近完成";
+                bgColor = "bg-green-100 text-green-800";
+            } else if (compRatio >= 0.5) {
+                statusText = "🟡 尚未完成";
+                bgColor = "bg-yellow-100 text-yellow-800";
+            } else {
+                statusText = "🔴 需優先處理";
+                bgColor = "bg-red-100 text-red-800";
+            }
+            return `<span class="status-badge ${bgColor}">${statusText}</span>`;
+        };
+
+        const getProgressBarStyle = (percentage, completed, required) => {
+            let color = 'bg-blue-500';
+            if (percentage >= 85) color = 'bg-green-500';
+            else if (percentage >= 50) color = 'bg-yellow-500';
+            else color = 'bg-red-500';
+
+            return `
+                <div class="h-4 bg-gray-200 rounded-full overflow-hidden mb-1">
+                    <div class="progress-bar h-full ${color} rounded-full" style="width: ${Math.min(100, percentage)}%;"></div>
+                </div>
+                <p class="text-sm text-gray-500 text-right">${percentage.toFixed(1)}% (${completed}/${required})</p>
+            `;
+        };
+
+        // --- 核心邏輯：計算與更新數據 ---
+        const recalculateData = (newCourse = null) => {
+            if (newCourse) {
+                data.completedCourses.push(newCourse);
+            }
+
+            // 1. 重置所有已完成學分
+            data.meta.total_completed = 0;
+            data.categories.forEach(c => c.completed = 0);
+            data.majorRequiredDetail.forEach(d => d.completed = 0);
+
+            // 2. 根據 completedCourses 重新計算
+            data.completedCourses.forEach(course => {
+                const credits = parseFloat(course.credits);
+                data.meta.total_completed += credits;
+
+                const subtype = course.subtype;
+                const type = course.type;
+                
+                // 處理四大類別
+                if (type === '必修' || type === '通識') {
+                    if (data.requiredMapping[subtype]) {
+                        // 處理系上必修 (I)
+                        const detailItem = data.majorRequiredDetail.find(d => d.sub === data.requiredMapping[subtype]);
+                        if (detailItem) {
+                            detailItem.completed += credits;
+                            data.categories.find(c => c.name === "系上必修").completed += credits;
+                        }
+                    } else if (type === '通識' && data.generalEducationSubtypes.includes(subtype)) {
+                        // 處理共同核心 (II)
+                        data.categories.find(c => c.name === "共同核心").completed += credits;
+                    }
+                } else if (type === '選修') {
+                    if (subtype === '專選') {
+                        // 處理系上專選 (III)
+                        data.categories.find(c => c.name === "系上專選").completed += credits;
+                    } else if (subtype === '其他選修') {
+                        // 處理其他選修 (IV)
+                        data.categories.find(c => c.name === "其他選修").completed += credits;
+                    }
+                }
+
+                // 處理文類課程的特殊情況
+                if (subtype.startsWith('文類課程-')) {
+                     const文類 = data.majorRequiredDetail.find(d => d.sub === "文類");
+                     if (文類) 文類.completed += credits;
+                }
+            });
+
+            // 3. 更新剩餘學分
+            data.majorRequiredDetail.forEach(d => {
+                d.remaining = Math.max(0, d.required - d.completed);
+                // 簡易更新尚缺課程 (這裡需要更複雜的邏輯來精確追蹤單一課程名稱，但暫時只處理學分)
+                if (d.remaining === 0 && d.todo !== '計算機概論（已完成）') {
+                    d.todo = "✅ 已完成";
+                } else if (d.remaining > 0 && d.todo.startsWith("✅")) {
+                     d.todo = "尚缺學分"; // 避免覆蓋原有待辦事項
+                }
+            });
+
+            // 4. 更新總計
+            const totalRequired = data.meta.total_required;
+            const totalCompleted = data.meta.total_completed;
+            data.meta.total_remaining = totalRequired - totalCompleted;
+
+            renderApp();
+        };
+
+        // --- 渲染函數 ---
+        const renderApp = () => {
+            // 1. 總體摘要 & Header
+            document.getElementById('version').textContent = data.meta.version;
+            document.getElementById('generated-date').textContent = data.meta.generated_on;
+            document.getElementById('total-required').textContent = data.meta.total_required;
+            document.getElementById('total-completed').textContent = data.meta.total_completed;
+            document.getElementById('total-remaining').textContent = data.meta.total_remaining;
+
+            // 2. 畢業要求總覽表格
+            const summaryBody = document.getElementById('summary-body');
+            summaryBody.innerHTML = '';
+            
+            let totalCompRatio = data.meta.total_completed / data.meta.total_required;
+
+            data.categories.forEach(c => {
+                let req = c.required;
+                let completed = c.completed;
+                let remaining, done, compRatio, statusHTML;
+                let reqForCalc = typeof req === 'string' ? parseFloat(req.replace('≥', '')) : req;
+
+                remaining = reqForCalc - completed;
+                compRatio = completed / reqForCalc;
+                done = pct(completed, reqForCalc);
+                statusHTML = getStatusBadge(compRatio);
+                
+                // 處理尚缺顯示
+                const remainingText = typeof req === 'string' ? `≥${remaining}` : remaining;
+
+                // Append the row
+                summaryBody.innerHTML += `
+                    <tr class="hover:bg-gray-100">
+                        <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${c.name}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-center">${req}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-center font-bold text-green-600">${completed}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-center text-red-600">${remainingText}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-center">${done}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-center">${statusHTML}</td>
+                    </tr>
+                `;
+            });
+
+            // Add Total Row
+            summaryBody.innerHTML += `
+                <tr class="bg-blue-50 border-t-2 border-blue-200">
+                    <td class="px-3 py-2 whitespace-nowrap text-sm font-extrabold text-blue-800">總計</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-center font-bold">${data.meta.total_required}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-center font-extrabold text-green-700">${data.meta.total_completed}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-center font-bold text-red-700">${data.meta.total_remaining}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-center font-extrabold">${pct(data.meta.total_completed, data.meta.total_required)}</td>
+                    <td class="px-3 py-2 whitespace-nowrap text-sm text-center">${getStatusBadge(totalCompRatio)}</td>
+                </tr>
+            `;
+
+            // 3. 系上必修詳情 & 進度條
+            const majorCategory = data.categories.find(c => c.name === "系上必修");
+            const majorPct = (majorCategory.completed / majorCategory.required) * 100;
+            document.getElementById('major-progress').innerHTML = getProgressBarStyle(majorPct, majorCategory.completed, majorCategory.required);
+
+            const detailBody = document.getElementById('detail-body');
+            detailBody.innerHTML = '';
+            data.majorRequiredDetail.forEach(d => {
+                const todoClass = d.remaining > 0 ? 'text-red-500 font-medium' : 'text-green-600';
+                detailBody.innerHTML += `
+                    <tr class="hover:bg-gray-100">
+                        <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${d.sub}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-center">${d.required}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-center">${d.completed}</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-sm text-center">${d.remaining}</td>
+                        <td class="px-3 py-2 whitespace-normal text-sm ${todoClass}">${d.todo}</td>
+                    </tr>
+                `;
+            });
+
+            // 4. 其他類別簡述的即時更新
+            document.getElementById('core-completed').textContent = data.categories.find(c => c.name === "共同核心").completed;
+            document.getElementById('core-remaining').textContent = `至少 ${Math.max(0, 18 - data.categories.find(c => c.name === "共同核心").completed)}`;
+            
+            document.getElementById('elective-special-completed').textContent = data.categories.find(c => c.name === "系上專選").completed;
+            document.getElementById('elective-special-remaining').textContent = Math.max(0, 9 - data.categories.find(c => c.name === "系上專選").completed);
+
+            document.getElementById('elective-other-completed').textContent = data.categories.find(c => c.name === "其他選修").completed;
+            document.getElementById('elective-other-remaining').textContent = Math.max(0, 26 - data.categories.find(c => c.name === "其他選修").completed);
+
+            // 5. 修課建議
+            const adviceList = document.getElementById('advice-list');
+            adviceList.innerHTML = data.advice.map(item => `<li>${item}</li>`).join('');
+        };
+
+
+        // --- 表單連動邏輯 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const courseTypeSelect = document.getElementById('course-type');
+            const courseSubtypeSelect = document.getElementById('course-subtype');
+            const form = document.getElementById('add-course-form');
+            const message = document.getElementById('message');
+
+            const majorRequiredOptions = [
+                "基礎課程", "語言學", "斷代史", "第二外語", 
+                "文類課程-詩", "文類課程-小說", "文類課程-戲劇", "文類課程-其他", 
+                "專選" // 專選屬於必修和選修之間，但在此依您的需求加入
+            ];
+
+            const electiveOptions = [
+                "專選", "其他選修"
+            ];
+
+            const updateSubtypeOptions = () => {
+                courseSubtypeSelect.innerHTML = '<option value="">-- 請選擇子類別 --</option>';
+                const selectedType = courseTypeSelect.value;
+                let options = [];
+
+                if (selectedType === '通識') {
+                    options = data.generalEducationSubtypes;
+                } else if (selectedType === '必修') {
+                    options = majorRequiredOptions;
+                } else if (selectedType === '選修') {
+                    options = electiveOptions;
+                }
+
+                options.forEach(optionText => {
+                    const option = document.createElement('option');
+                    option.value = optionText;
+                    option.textContent = optionText;
+                    courseSubtypeSelect.appendChild(option);
+                });
+            };
+
+            courseTypeSelect.addEventListener('change', updateSubtypeOptions);
+
+            // --- 表單提交處理 ---
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                message.textContent = '';
+
+                const newCourse = {
+                    type: courseTypeSelect.value,
+                    subtype: courseSubtypeSelect.value,
+                    name: document.getElementById('course-name').value.trim(),
+                    credits: parseFloat(document.getElementById('course-credits').value),
+                };
+
+                if (isNaN(newCourse.credits) || newCourse.credits <= 0) {
+                    message.textContent = '請輸入有效的學分數 (必須大於 0)。';
+                    return;
+                }
+
+                recalculateData(newCourse);
+                
+                // 成功訊息和表單重置
+                message.textContent = `✅ 課程「${newCourse.name}」(${newCourse.credits}學分) 已成功新增並更新報告！`;
+                form.reset();
+                courseSubtypeSelect.innerHTML = '<option value="">-- 請先選上層類別 --</option>'; // 重置連動選單
+            });
+
+            // 初始渲染
+            recalculateData();
+        });
+    </script>
+</body>
+</html>
